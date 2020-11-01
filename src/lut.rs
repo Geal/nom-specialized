@@ -24,7 +24,7 @@ const fn make_lookup_table(f: fn(u8) -> bool) -> [bool; 256] {
 #[macro_export]
 macro_rules! make_lookup_table (
   ($f: expr) => ({
-    let mut array = [false; 256];
+    let mut array = [0u8; 256];
 
     let mut i = 0u16;
     while i <= 255 {
@@ -38,10 +38,14 @@ macro_rules! make_lookup_table (
 
 #[cfg(test)]
 mod tests {
-    const fn is_header_value_token(c: u8) -> bool {
-        return c == '\t' as u8 || (c > 31 && c != 127);
+    const fn is_header_value_token(c: u8) -> u8 {
+        if c == '\t' as u8 || (c > 31 && c != 127) {
+            1
+        } else {
+            0
+        }
     }
-    const LOOKUP_TABLE: [bool; 256] = make_lookup_table!(is_header_value_token);
+    const LOOKUP_TABLE: [u8; 256] = make_lookup_table!(is_header_value_token);
     //const LOOKUP_TABLE: [bool; 256] = make_lookup_table(is_header_value_token);
     #[test]
     fn print() {
