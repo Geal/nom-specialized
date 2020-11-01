@@ -1,7 +1,7 @@
 /* Copyright (C) 2020 Geoffroy Couprie */
 use nom::{
-    error::{ErrorKind, Error, ParseError},
-    Err, IResult, InputTakeAtPosition, Needed,
+    error::{ErrorKind, ParseError},
+    Err, IResult, Needed,
 };
 
 pub fn take_while0_unrolled<'a, F, Error: ParseError<&'a [u8]>>(
@@ -169,7 +169,7 @@ where
 
 #[inline(always)]
 pub fn take_while0_sse2<'a, 'b: 'a, F>(
-    mut predicate: F,
+    predicate: F,
     ranges: &'b [u8],
 ) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8], ()>
 where
@@ -241,7 +241,7 @@ where
 
 #[inline(always)]
 pub fn take_while1_sse2<'a, 'b: 'a, F, Error>(
-    mut predicate: F,
+    predicate: F,
     ranges: &'b [u8],
 ) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8], Error>
 where

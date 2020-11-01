@@ -49,6 +49,6 @@ mod tests {
     //const LOOKUP_TABLE: [bool; 256] = make_lookup_table(is_header_value_token);
     #[test]
     fn print() {
-        //panic!("LOOKUP_TABLE:\n{:#?}", LOOKUP_TABLE);
+        println!("LOOKUP_TABLE:\n{:#?}", LOOKUP_TABLE);
     }
 }
