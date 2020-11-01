@@ -72,7 +72,7 @@ fn alphanumeric_lut(i: &[u8]) -> IResult<&[u8], &[u8]> {
     take_while1(is_alphanumeric_lut)(i)
 }
 
-fn alphabetic_1024(bench: &mut Bencher) {
+fn alphabetic_1024_nom(bench: &mut Bencher) {
     let mut rng = rand::thread_rng();
     let mut v: Vec<u8> = std::iter::repeat(())
         .map(|_| rng.sample(Uniform::new('A' as u8, '[' as u8)))
@@ -88,7 +88,7 @@ fn alphabetic_1024(bench: &mut Bencher) {
     bench.iter(|| alphabetic(&v[..]))
 }
 
-fn alphabetic_lut_1024(bench: &mut Bencher) {
+fn alphabetic_1024_lut(bench: &mut Bencher) {
     let mut rng = rand::thread_rng();
     let mut v: Vec<u8> = std::iter::repeat(())
         .map(|_| rng.sample(Uniform::new('A' as u8, '[' as u8)))
@@ -104,7 +104,7 @@ fn alphabetic_lut_1024(bench: &mut Bencher) {
     bench.iter(|| alphabetic_lut(&v[..]))
 }
 
-fn alphabetic_16384(bench: &mut Bencher) {
+fn alphabetic_16384_nom(bench: &mut Bencher) {
     let mut rng = rand::thread_rng();
     let mut v: Vec<u8> = std::iter::repeat(())
         .map(|_| rng.sample(Uniform::new('A' as u8, '[' as u8)))
@@ -120,7 +120,7 @@ fn alphabetic_16384(bench: &mut Bencher) {
     bench.iter(|| alphabetic(&v[..]))
 }
 
-fn alphabetic_lut_16384(bench: &mut Bencher) {
+fn alphabetic_16384_lut(bench: &mut Bencher) {
     let mut rng = rand::thread_rng();
     let mut v: Vec<u8> = std::iter::repeat(())
         .map(|_| rng.sample(Uniform::new('A' as u8, '[' as u8)))
@@ -136,7 +136,7 @@ fn alphabetic_lut_16384(bench: &mut Bencher) {
     bench.iter(|| alphabetic_lut(&v[..]))
 }
 
-fn alphanumeric_1024(bench: &mut Bencher) {
+fn alphanumeric_1024_nom(bench: &mut Bencher) {
     let mut rng = rand::thread_rng();
     let mut v: String = std::iter::repeat(())
         .map(|_| rng.sample(Alphanumeric))
@@ -152,7 +152,7 @@ fn alphanumeric_1024(bench: &mut Bencher) {
     bench.iter(|| alphanumeric(&v[..]))
 }
 
-fn alphanumeric_lut_1024(bench: &mut Bencher) {
+fn alphanumeric_1024_lut(bench: &mut Bencher) {
     let mut rng = rand::thread_rng();
     let mut v: String = std::iter::repeat(())
         .map(|_| rng.sample(Alphanumeric))
@@ -168,7 +168,7 @@ fn alphanumeric_lut_1024(bench: &mut Bencher) {
     bench.iter(|| alphanumeric_lut(&v[..]))
 }
 
-fn alphanumeric_16384(bench: &mut Bencher) {
+fn alphanumeric_16384_nom(bench: &mut Bencher) {
     let mut rng = rand::thread_rng();
     let mut v: String = std::iter::repeat(())
         .map(|_| rng.sample(Alphanumeric))
@@ -184,7 +184,7 @@ fn alphanumeric_16384(bench: &mut Bencher) {
     bench.iter(|| alphanumeric(&v[..]))
 }
 
-fn alphanumeric_lut_16384(bench: &mut Bencher) {
+fn alphanumeric_16384_lut(bench: &mut Bencher) {
     let mut rng = rand::thread_rng();
     let mut v: String = std::iter::repeat(())
         .map(|_| rng.sample(Alphanumeric))
@@ -202,13 +202,13 @@ fn alphanumeric_lut_16384(bench: &mut Bencher) {
 
 benchmark_group!(
     benches,
-    alphabetic_1024,
-    alphabetic_lut_1024,
-    alphabetic_16384,
-    alphabetic_lut_16384,
-    alphanumeric_1024,
-    alphanumeric_lut_1024,
-    alphanumeric_16384,
-    alphanumeric_lut_16384,
+    alphabetic_1024_nom,
+    alphabetic_1024_lut,
+    alphabetic_16384_nom,
+    alphabetic_16384_lut,
+    alphanumeric_1024_nom,
+    alphanumeric_1024_lut,
+    alphanumeric_16384_nom,
+    alphanumeric_16384_lut,
 );
 benchmark_main!(benches);

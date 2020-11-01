@@ -7,7 +7,7 @@ use bencher::Bencher;
 use nom::IResult;
 use nom::error::Error;
 
-fn nom_take_while1_1024(bench: &mut Bencher) {
+fn take_while1_1024_nom(bench: &mut Bencher) {
     let mut v = std::iter::repeat(b'a').take(1023).collect::<Vec<_>>();
     v.push(b'b');
 
@@ -19,7 +19,7 @@ fn nom_take_while1_1024(bench: &mut Bencher) {
     bench.iter(|| parser(&v[..]))
 }
 
-fn unrolled_take_while1_1024(bench: &mut Bencher) {
+fn take_while1_1024_unrolled(bench: &mut Bencher) {
     let mut v = std::iter::repeat(b'a').take(1023).collect::<Vec<_>>();
     v.push(b'b');
 
@@ -31,7 +31,7 @@ fn unrolled_take_while1_1024(bench: &mut Bencher) {
     bench.iter(|| parser(&v[..]))
 }
 
-fn sse2_take_while1_1024(bench: &mut Bencher) {
+fn take_while1_1024_sse2(bench: &mut Bencher) {
     let mut v = std::iter::repeat(b'a').take(1023).collect::<Vec<_>>();
     v.push(b'b');
 
@@ -45,7 +45,7 @@ fn sse2_take_while1_1024(bench: &mut Bencher) {
     bench.iter(|| parser(&v[..]))
 }
 
-fn nom_take_while1_50(bench: &mut Bencher) {
+fn take_while1_50_nom(bench: &mut Bencher) {
     let mut v = std::iter::repeat(b'a').take(49).collect::<Vec<_>>();
     v.push(b'b');
 
@@ -57,7 +57,7 @@ fn nom_take_while1_50(bench: &mut Bencher) {
     bench.iter(|| parser(&v[..]))
 }
 
-fn unrolled_take_while1_50(bench: &mut Bencher) {
+fn take_while1_50_unrolled(bench: &mut Bencher) {
     let mut v = std::iter::repeat(b'a').take(49).collect::<Vec<_>>();
     v.push(b'b');
 
@@ -69,7 +69,7 @@ fn unrolled_take_while1_50(bench: &mut Bencher) {
     bench.iter(|| parser(&v[..]))
 }
 
-fn sse2_take_while1_50(bench: &mut Bencher) {
+fn take_while1_50_sse2(bench: &mut Bencher) {
     let mut v = std::iter::repeat(b'a').take(49).collect::<Vec<_>>();
     v.push(b'b');
 
@@ -83,7 +83,7 @@ fn sse2_take_while1_50(bench: &mut Bencher) {
     bench.iter(|| parser(&v[..]))
 }
 
-fn nom_take_while1_16384(bench: &mut Bencher) {
+fn take_while1_16384_nom(bench: &mut Bencher) {
     let mut v = std::iter::repeat(b'a').take(16383).collect::<Vec<_>>();
     v.push(b'b');
 
@@ -95,7 +95,7 @@ fn nom_take_while1_16384(bench: &mut Bencher) {
     bench.iter(|| parser(&v[..]))
 }
 
-fn unrolled_take_while1_16384(bench: &mut Bencher) {
+fn take_while1_16384_unrolled(bench: &mut Bencher) {
     let mut v = std::iter::repeat(b'a').take(16383).collect::<Vec<_>>();
     v.push(b'b');
 
@@ -107,7 +107,7 @@ fn unrolled_take_while1_16384(bench: &mut Bencher) {
     bench.iter(|| parser(&v[..]))
 }
 
-fn sse2_take_while1_16384(bench: &mut Bencher) {
+fn take_while1_16384_sse2(bench: &mut Bencher) {
     let mut v = std::iter::repeat(b'a').take(16383).collect::<Vec<_>>();
     v.push(b'b');
 
@@ -123,14 +123,14 @@ fn sse2_take_while1_16384(bench: &mut Bencher) {
 
 benchmark_group!(
     benches,
-    nom_take_while1_50,
-    unrolled_take_while1_50,
-    sse2_take_while1_50,
-    nom_take_while1_1024,
-    unrolled_take_while1_1024,
-    sse2_take_while1_1024,
-    nom_take_while1_16384,
-    unrolled_take_while1_16384,
-    sse2_take_while1_16384
+    take_while1_50_nom,
+    take_while1_50_unrolled,
+    take_while1_50_sse2,
+    take_while1_1024_nom,
+    take_while1_1024_unrolled,
+    take_while1_1024_sse2,
+    take_while1_16384_nom,
+    take_while1_16384_unrolled,
+    take_while1_16384_sse2,
 );
 benchmark_main!(benches);

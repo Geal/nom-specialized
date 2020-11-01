@@ -20,5 +20,5 @@ name = "take_while1"
 harness = false
 
 [[bench]]
-name = "lut"
+name = "lookup_table"
 harness = false
