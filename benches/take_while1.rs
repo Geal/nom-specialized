@@ -79,7 +79,7 @@ fn take_while1_50_sse2(bench: &mut Bencher) {
     let res = parser(&v[..]);
     assert_eq!(res, Ok((&b"b"[..], &v[..49])));
 
-    bench.bytes = 1024;
+    bench.bytes = 50;
     bench.iter(|| parser(&v[..]))
 }
 
@@ -117,7 +117,7 @@ fn take_while1_16384_sse2(bench: &mut Bencher) {
     let res = parser(&v[..]);
     assert_eq!(res, Ok((&b"b"[..], &v[..16383])));
 
-    bench.bytes = 1024;
+    bench.bytes = 16384;
     bench.iter(|| parser(&v[..]))
 }
 
