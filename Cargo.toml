@@ -13,7 +13,12 @@ nom = "6"
 
 [dev-dependencies]
 bencher = "0.1"
+rand = "0.7"
 
 [[bench]]
 name = "take_while1"
+harness = false
+
+[[bench]]
+name = "lut"
 harness = false
