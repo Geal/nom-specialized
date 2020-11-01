@@ -1,21 +1,8 @@
 /* Copyright (C) 2020 Geoffroy Couprie */
 use nom::{
-    error::{ErrorKind, ParseError},
+    error::{ErrorKind, Error, ParseError},
     Err, IResult, InputTakeAtPosition, Needed,
 };
-
-pub fn take_while1<F, Input, Error: ParseError<Input>>(
-    cond: F,
-) -> impl Fn(Input) -> IResult<Input, Input, Error>
-where
-    Input: InputTakeAtPosition,
-    F: Fn(<Input as InputTakeAtPosition>::Item) -> bool,
-{
-    move |i: Input| {
-        let e: ErrorKind = ErrorKind::TakeWhile1;
-        i.split_at_position1(|c| !cond(c), e)
-    }
-}
 
 pub fn take_while1_unrolled<'a, F, Error: ParseError<&'a [u8]>>(
     cond: F,
@@ -101,28 +88,13 @@ where
     }
 }
 
-/*
-#[macro_export]
-macro_rules! take_while1_simd (
-  ($input:expr, $predicate:expr, $ranges:expr) => ({
-      use nom::Err;
-      use nom::Context;
-      use nom::ErrorKind;
-
-      match $crate::combinators::take_while1_simd($input, $predicate, $ranges) {
-          Ok(x) => Ok(x),
-          Err(()) => Err(Err::Error(Context::Code($input, ErrorKind::TakeWhile1))),
-      }
-  })
-);
-*/
-
 #[inline(always)]
-pub fn take_while1_sse2<'a, 'b: 'a, F>(
+pub fn take_while1_sse2<'a, 'b: 'a, F, Error>(
     mut predicate: F,
     ranges: &'b [u8],
-) -> impl Fn(&'a [u8]) -> Result<(&'a [u8], &'a [u8]), ()>
+) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8], Error>
 where
+    Error: ParseError<&'a [u8]>,
     F: Fn(u8) -> bool,
 {
     move |input: &'a [u8]| {
@@ -181,7 +153,12 @@ where
         }
 
         if i == 0 {
-            Err(())
+            Err(Err::Error(Error::from_error_kind(
+                input,
+                ErrorKind::TakeWhile1,
+            )))
+        } else if i == input.len() {
+            Err(Err::Incomplete(Needed::Unknown))
         } else {
             let (prefix, suffix) = input.split_at(i);
             Ok((suffix, prefix))
