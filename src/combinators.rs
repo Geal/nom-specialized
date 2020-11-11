@@ -60,6 +60,12 @@ where
                 break;
             }
             i = i + 1;
+
+            if !cond(unsafe { *input.get_unchecked(i) }) {
+                found = true;
+                break;
+            }
+            i = i + 1;
         }
 
         if !found {
@@ -121,6 +127,12 @@ where
                 found = true;
                 break;
             }
+
+            if !cond(unsafe { *input.get_unchecked(i) }) {
+                found = true;
+                break;
+            }
+            i = i + 1;
 
             if !cond(unsafe { *input.get_unchecked(i) }) {
                 found = true;
