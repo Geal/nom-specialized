@@ -15,10 +15,17 @@ nom = "6"
 bencher = "0.1"
 rand = "0.7"
 
+[features]
+simd = []
+
 [[bench]]
 name = "take_while1"
 harness = false
 
 [[bench]]
 name = "lookup_table"
+harness = false
+
+[[bench]]
+name = "tag"
 harness = false

@@ -317,19 +317,160 @@ where
     }
 }
 
-#[test]
-#[cfg(feature = "simd")]
-fn simd_test() {
-    fn is_token(c: u8) -> bool {
-        c > 0x20 && c < 0x7F
+#[inline(always)]
+pub fn tag_sse2<'a, 'b: 'a, Error: ParseError<&'a [u8]>>(
+    tag: &'b[u8],
+) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8], Error>
+{
+    move |input: &'a [u8]| {
+        use std::arch::x86_64::{
+            _mm_cmpestri, _mm_loadu_si128, _SIDD_CMP_EQUAL_EACH, _SIDD_LEAST_SIGNIFICANT,
+            _SIDD_UBYTE_OPS, _SIDD_NEGATIVE_POLARITY,
+        };
+
+        let start = input.as_ptr() as usize;
+        let mut i = input.as_ptr() as usize;
+        let mut left = input.len();
+        let mut found = false;
+
+        let mut index = 0;
+        loop {
+            let current_tag = &tag[index..];
+            let current_tag_len = std::cmp::min(current_tag.len(), 16) as i32;
+            let current_slice = &input[index..];
+            let current_slice_len = std::cmp::min(current_slice.len(), 16) as i32;
+
+            let idx = unsafe {
+                _mm_cmpestri(
+                    _mm_loadu_si128(current_tag.as_ptr() as *const _),
+                    current_tag_len,
+                    _mm_loadu_si128(current_slice.as_ptr() as *const _),
+                    current_slice_len,
+                    _SIDD_LEAST_SIGNIFICANT | _SIDD_CMP_EQUAL_EACH | _SIDD_UBYTE_OPS | _SIDD_NEGATIVE_POLARITY,
+                    )
+            };
+
+            index += idx as usize;
+            if idx < 16 {
+                found = true;
+                break;
+            }
+
+            if current_tag.len() <= 16 || current_slice.len() < 16 {
+                break;
+            }
+        }
+
+        if index == tag.len() {
+            Ok((&input[index..], &input[..index]))
+        } else {
+            if found {
+                Err(Err::Error(Error::from_error_kind(input, ErrorKind::Tag)))
+            } else {
+                Err(Err::Incomplete(Needed::new(tag.len() - index)))
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[cfg(feature = "simd")]
+    fn simd_test() {
+        use std::str::from_utf8;
+        fn is_token(c: u8) -> bool {
+            c > 0x20 && c < 0x7F
+        }
+
+        let range = b"\0 \x7F\x7F";
+        let input = b"/abcd/efgh/ijkl/pouet/ 1234579";
+        let input = b"/abcd/efgh/ij kl/pouet/ 1234579";
+        let res: IResult<&[u8], &[u8]> = take_while1_sse2(is_token, range)(input);
+
+        let (i, o) = res.unwrap();
+        assert_eq!(from_utf8(i).unwrap(), " kl/pouet/ 1234579");
+        assert_eq!(from_utf8(o).unwrap(), "/abcd/efgh/ij");
     }
 
-    let range = b"\0 \x7F\x7F";
-    let input = b"/abcd/efgh/ijkl/pouet/ 1234579";
-    let input = b"/abcd/efgh/ij kl/pouet/ 1234579";
-    let res: IResult<&[u8], &[u8]> = take_while1_simd!(input, is_token, range);
+    #[test]
+    //#[cfg(feature = "simd")]
+    fn tag_simd_test() {
+        use std::arch::x86_64::{
+            _mm_cmpestri, _mm_cmpestrm, _mm_loadu_si128, _SIDD_CMP_EQUAL_EACH, _SIDD_LEAST_SIGNIFICANT,
+            _SIDD_UBYTE_OPS, _SIDD_NEGATIVE_POLARITY
+        };
 
-    let (i, o) = res.unwrap();
-    assert_eq!(from_utf8(i).unwrap(), " kl/pouet/ 1234579");
-    assert_eq!(from_utf8(o).unwrap(), "/abcd/efgh/ij");
+        let tag1 = "ABCDABCDABCDABCD";
+        let tag2 = "ABCDABCDABCD";
+        let tag3 = "ABCDABCDABCDABCDEFGH";
+
+        let slice1 = "ABCDABCDABCDABCD";
+        let slice2 = "ABcdabcdabcdabcd";
+        let slice3 = "ABCDabcd";
+        let slice4 = "ABCDABCDABCDABCDABCD";
+
+        let idx = unsafe {
+            println!("tag1-> {:?}", _mm_loadu_si128(tag1.as_ptr() as *const _));
+            _mm_cmpestri(
+                _mm_loadu_si128(tag1.as_ptr() as *const _),
+                tag1.len() as i32,
+                _mm_loadu_si128(slice1.as_ptr() as *const _),
+                slice1.len() as i32,
+                _SIDD_LEAST_SIGNIFICANT | _SIDD_CMP_EQUAL_EACH | _SIDD_UBYTE_OPS | _SIDD_NEGATIVE_POLARITY,
+            )
+        };
+        println!("comparing tag \"{}\" to input \"{}\" gave {:?}, should be {}",
+          tag1, slice1, idx, 16);
+
+        let idx = unsafe {
+            _mm_cmpestri(
+                _mm_loadu_si128(tag1.as_ptr() as *const _),
+                tag1.len() as i32,
+                _mm_loadu_si128(slice2.as_ptr() as *const _),
+                slice2.len() as i32,
+                _SIDD_LEAST_SIGNIFICANT | _SIDD_CMP_EQUAL_EACH | _SIDD_UBYTE_OPS | _SIDD_NEGATIVE_POLARITY,
+            )
+        };
+        println!("comparing tag \"{}\" to input \"{}\" gave {:?}, should be {}",
+          tag1, slice2, idx, 2);
+
+        let idx = unsafe {
+            _mm_cmpestri(
+                _mm_loadu_si128(tag2.as_ptr() as *const _),
+                tag2.len() as i32,
+                _mm_loadu_si128(slice1.as_ptr() as *const _),
+                slice1.len() as i32,
+                _SIDD_LEAST_SIGNIFICANT | _SIDD_CMP_EQUAL_EACH | _SIDD_UBYTE_OPS | _SIDD_NEGATIVE_POLARITY,
+            )
+        };
+        println!("comparing tag \"{}\" to input \"{}\" gave {:?}, should be {}",
+          tag2, slice1, idx, 12);
+
+        let idx = unsafe {
+            _mm_cmpestri(
+                _mm_loadu_si128(tag3.as_ptr() as *const _),
+                tag3.len() as i32,
+                _mm_loadu_si128(slice3.as_ptr() as *const _),
+                slice3.len() as i32,
+                _SIDD_LEAST_SIGNIFICANT | _SIDD_CMP_EQUAL_EACH | _SIDD_UBYTE_OPS | _SIDD_NEGATIVE_POLARITY,
+            )
+        };
+        println!("comparing tag \"{}\" to input \"{}\" gave {:?}, should be {}",
+          tag3, slice3, idx, 4);
+
+        let idx = unsafe {
+            _mm_cmpestri(
+                _mm_loadu_si128(tag3.as_ptr() as *const _),
+                tag3.len() as i32,
+                _mm_loadu_si128(slice4.as_ptr() as *const _),
+                slice4.len() as i32,
+                _SIDD_LEAST_SIGNIFICANT | _SIDD_CMP_EQUAL_EACH | _SIDD_UBYTE_OPS | _SIDD_NEGATIVE_POLARITY,
+            )
+        };
+        println!("comparing tag \"{}\" to input \"{}\" gave {:?}, should be {}",
+          tag3, slice4, idx, 16);
+    }
 }
