@@ -16,7 +16,7 @@ bencher = "0.1"
 rand = "0.7"
 
 [features]
-simd = []
+sse2 = []
 
 [[bench]]
 name = "take_while1"

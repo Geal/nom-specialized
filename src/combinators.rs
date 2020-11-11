@@ -180,6 +180,7 @@ where
 }
 
 #[inline(always)]
+#[cfg(feature = "sse2")]
 pub fn take_while0_sse2<'a, 'b: 'a, F>(
     predicate: F,
     ranges: &'b [u8],
@@ -252,6 +253,7 @@ where
 }
 
 #[inline(always)]
+#[cfg(feature = "sse2")]
 pub fn take_while1_sse2<'a, 'b: 'a, F, Error>(
     predicate: F,
     ranges: &'b [u8],
@@ -418,6 +420,7 @@ pub fn tag_unrolled<'a, 'b: 'a, Error: ParseError<&'a [u8]>>(
 }
 
 #[inline(always)]
+#[cfg(feature = "sse2")]
 pub fn tag_sse2<'a, 'b: 'a, Error: ParseError<&'a [u8]>>(
     tag: &'b[u8],
 ) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8], Error>
@@ -478,7 +481,7 @@ mod tests {
     use super::*;
 
     #[test]
-    #[cfg(feature = "simd")]
+    #[cfg(feature = "sse2")]
     fn simd_test() {
         use std::str::from_utf8;
         fn is_token(c: u8) -> bool {
@@ -496,7 +499,7 @@ mod tests {
     }
 
     #[test]
-    //#[cfg(feature = "simd")]
+    #[cfg(feature = "sse2")]
     fn tag_simd_test() {
         use std::arch::x86_64::{
             _mm_cmpestri, _mm_cmpestrm, _mm_loadu_si128, _SIDD_CMP_EQUAL_EACH, _SIDD_LEAST_SIGNIFICANT,
