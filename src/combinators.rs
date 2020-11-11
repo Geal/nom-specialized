@@ -317,6 +317,94 @@ where
     }
 }
 
+pub fn tag_unrolled<'a, 'b: 'a, Error: ParseError<&'a [u8]>>(
+    tag: &'b[u8]
+) -> impl Fn(&'a [u8]) -> IResult<&'a [u8], &'a [u8], Error>
+{
+    move |input: &'a [u8]| {
+        let mut i = 0usize;
+        let len = std::cmp::min(tag.len(), input.len());
+        let mut found = false;
+
+        loop {
+            if len - i < 8 {
+                break;
+            }
+
+            if unsafe { *tag.get_unchecked(i) != *input.get_unchecked(i) } {
+                found = true;
+                break;
+            }
+            i = i + 1;
+
+            if unsafe { *tag.get_unchecked(i) != *input.get_unchecked(i) } {
+                found = true;
+                break;
+            }
+            i = i + 1;
+
+            if unsafe { *tag.get_unchecked(i) != *input.get_unchecked(i) } {
+                found = true;
+                break;
+            }
+            i = i + 1;
+
+            if unsafe { *tag.get_unchecked(i) != *input.get_unchecked(i) } {
+                found = true;
+                break;
+            }
+            i = i + 1;
+
+            if unsafe { *tag.get_unchecked(i) != *input.get_unchecked(i) } {
+                found = true;
+                break;
+            }
+            i = i + 1;
+
+            if unsafe { *tag.get_unchecked(i) != *input.get_unchecked(i) } {
+                found = true;
+                break;
+            }
+            i = i + 1;
+
+            if unsafe { *tag.get_unchecked(i) != *input.get_unchecked(i) } {
+                found = true;
+                break;
+            }
+            i = i + 1;
+
+            if unsafe { *tag.get_unchecked(i) != *input.get_unchecked(i) } {
+                found = true;
+                break;
+            }
+            i = i + 1;
+        }
+
+        if !found {
+            loop {
+                if unsafe { *tag.get_unchecked(i) != *input.get_unchecked(i) } {
+                    break;
+                }
+                i = i + 1;
+                if i == len {
+                    break;
+                }
+            }
+        }
+
+        if i == tag.len() {
+            let (prefix, suffix) = input.split_at(i);
+            Ok((suffix, prefix))
+        } else {
+            if input.len() > i {
+                Err(Err::Error(Error::from_error_kind(input, ErrorKind::Tag)))
+            } else {
+                Err(Err::Incomplete(Needed::new(tag.len() - i)))
+            }
+        }
+    }
+}
+
 #[inline(always)]
 pub fn tag_sse2<'a, 'b: 'a, Error: ParseError<&'a [u8]>>(
     tag: &'b[u8],
