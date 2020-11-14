@@ -1,12 +1,15 @@
 #[macro_use]
 extern crate bencher;
+#[macro_use]
+extern crate lazy_static;
 extern crate nom;
 extern crate nom_specialized;
 
 use bencher::Bencher;
-use nom::{IResult, Parser, Err, Needed};
+use nom::{IResult, Parser, Err, Needed, HexDisplay};
 use nom::error::{Error, ErrorKind, ParseError};
-use nom::bytes::streaming::tag;
+//use nom::bytes::streaming::tag;
+use nom_specialized::combinators::tag_unrolled as tag;
 
 fn nom_parser(i: &[u8]) -> IResult<&[u8], u8> {
     nom::branch::alt((
@@ -33,8 +36,50 @@ fn nom_parser(i: &[u8]) -> IResult<&[u8], u8> {
 }
 
 fn naive(i: &[u8]) -> IResult<&[u8], u8> {
-    let mut index = 0usize;
+    let (i, h) = nom::bytes::streaming::take_while1(|c: u8| {
+        nom::character::is_alphabetic(c) || c == b'-'
+    })(i)?;
 
+    let value = if h == &b"Accept-Charset"[..] {
+        0u8
+    } else if h == &b"Accept-Encoding"[..] {
+        1u8
+    } else if h == &b"Accept"[..] {
+        2u8
+    } else if h == &b"Authorization"[..] {
+        3u8
+    } else if h == &b"Content-Encoding"[..] {
+        4u8
+    } else if h == &b"Content-Length"[..] {
+        5u8
+    } else if h == &b"Date"[..] {
+        6u8
+    } else if h == &b"Expect"[..] {
+        7u8
+    } else if h == &b"Forwarded"[..] {
+        8u8
+    } else if h == &b"Host"[..] {
+        9u8
+    } else if h == &b"If-Modified-Since"[..] {
+        10u8
+    } else if h == &b"Referer"[..] {
+        11u8
+    } else if h == &b"User-Agent"[..] {
+        12u8
+    } else if h == &b"Upgrade"[..] {
+        13u8
+    } else if h == &b"Via"[..] {
+        14u8
+    } else if h == &b"X-Forwarded-For"[..] {
+        15u8
+    } else {
+        return Err(Err::Error(Error::from_error_kind(i, ErrorKind::Tag)));
+    };
+
+    Ok((i, value))
+}
+
+fn manual(i: &[u8]) -> IResult<&[u8], u8> {
     match i.get(0) {
         Some(b'A') => {
             match i.get(1) {
@@ -86,7 +131,34 @@ fn naive(i: &[u8]) -> IResult<&[u8], u8> {
         Some(_) => Err(Err::Error(Error::from_error_kind(i, ErrorKind::Tag))),
         None => Err(Err::Incomplete(Needed::Unknown)),
     }
+}
 
+lazy_static! {
+        static ref RE: regex::bytes::RegexSet = regex::bytes::RegexSet::new(&[
+               r"Accept-Charset",
+               r"Accept-Encoding",
+               r"Accept",
+               r"Authorization",
+               r"Content-Encoding",
+               r"Content-Length",
+               r"Date",
+               r"Expect",
+               r"Forwarded",
+               r"Host",
+               r"If-Modified-Since",
+               r"Referer",
+               r"User-Agent",
+               r"Upgrade",
+               r"Via",
+               r"X-Forwarded-For",
+        ]).unwrap();
+}
+
+fn re(i: &[u8]) -> IResult<&[u8], u8> {
+    match RE.matches(i).iter().next() {
+        Some(index) => Ok((i, index as u8)),
+        None => Err(Err::Error(Error::from_error_kind(i, ErrorKind::Tag))),
+    }
 }
 
 fn multitag_Accept_nom(bench: &mut Bencher) {
@@ -99,6 +171,16 @@ fn multitag_Accept_nom(bench: &mut Bencher) {
     bench.iter(|| nom_parser(&input[..]))
 }
 
+fn multitag_Accept_manual(bench: &mut Bencher) {
+    let input = b"Accept:";
+
+    let res: IResult<_, _> = manual(&input[..]);
+    assert_eq!(res, Ok((&b":"[..], 2)));
+
+    bench.bytes = 6;
+    bench.iter(|| manual(&input[..]))
+}
+
 fn multitag_Accept_naive(bench: &mut Bencher) {
     let input = b"Accept:";
 
@@ -107,6 +189,16 @@ fn multitag_Accept_naive(bench: &mut Bencher) {
 
     bench.bytes = 6;
     bench.iter(|| naive(&input[..]))
+}
+
+fn multitag_Accept_re(bench: &mut Bencher) {
+    let input = b"Accept:";
+
+    let res: IResult<_, _> = re(&input[..]);
+    assert_eq!(res, Ok((&input[..], 2)));
+
+    bench.bytes = 6;
+    bench.iter(|| re(&input[..]))
 }
 
 fn multitag_Content_Length_nom(bench: &mut Bencher) {
@@ -119,6 +211,16 @@ fn multitag_Content_Length_nom(bench: &mut Bencher) {
     bench.iter(|| nom_parser(&input[..]))
 }
 
+fn multitag_Content_Length_manual(bench: &mut Bencher) {
+    let input = b"Content-Length:";
+
+    let res: IResult<_, _> = manual(&input[..]);
+    assert_eq!(res, Ok((&b":"[..], 5)));
+
+    bench.bytes = 14;
+    bench.iter(|| manual(&input[..]))
+}
+
 fn multitag_Content_Length_naive(bench: &mut Bencher) {
     let input = b"Content-Length:";
 
@@ -127,6 +229,16 @@ fn multitag_Content_Length_naive(bench: &mut Bencher) {
 
     bench.bytes = 14;
     bench.iter(|| naive(&input[..]))
+}
+
+fn multitag_Content_Length_re(bench: &mut Bencher) {
+    let input = b"Content-Length:";
+
+    let res: IResult<_, _> = re(&input[..]);
+    assert_eq!(res, Ok((&input[..], 5)));
+
+    bench.bytes = 14;
+    bench.iter(|| re(&input[..]))
 }
 
 fn multitag_Upgrade_nom(bench: &mut Bencher) {
@@ -139,6 +251,16 @@ fn multitag_Upgrade_nom(bench: &mut Bencher) {
     bench.iter(|| nom_parser(&input[..]))
 }
 
+fn multitag_Upgrade_manual(bench: &mut Bencher) {
+    let input = b"Upgrade:";
+
+    let res: IResult<_, _> = manual(&input[..]);
+    assert_eq!(res, Ok((&b":"[..], 13)));
+
+    bench.bytes = 7;
+    bench.iter(|| manual(&input[..]))
+}
+
 fn multitag_Upgrade_naive(bench: &mut Bencher) {
     let input = b"Upgrade:";
 
@@ -148,13 +270,30 @@ fn multitag_Upgrade_naive(bench: &mut Bencher) {
     bench.bytes = 7;
     bench.iter(|| naive(&input[..]))
 }
+
+fn multitag_Upgrade_re(bench: &mut Bencher) {
+    let input = b"Upgrade:";
+
+    let res: IResult<_, _> = re(&input[..]);
+    assert_eq!(res, Ok((&input[..], 13)));
+
+    bench.bytes = 7;
+    bench.iter(|| re(&input[..]))
+}
+
 benchmark_group!(
     benches,
     multitag_Accept_nom,
+    multitag_Accept_manual,
     multitag_Accept_naive,
+    multitag_Accept_re,
     multitag_Content_Length_nom,
+    multitag_Content_Length_manual,
     multitag_Content_Length_naive,
+    multitag_Content_Length_re,
     multitag_Upgrade_nom,
+    multitag_Upgrade_manual,
     multitag_Upgrade_naive,
+    multitag_Upgrade_re,
 );
 benchmark_main!(benches);
