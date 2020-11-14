@@ -28,8 +28,8 @@ fn prepare(strings: &[&'static str]) -> Masks {
             shuf_mask[index+i] = i as u8;
         }
 
-        high_mask = (high_mask + 1) << s.len();
-        low_mask = (low_mask << s.len()) + 1;
+        high_mask |= 1 << index + s.len() - 1;
+        low_mask |= 1 << index;
 
         ids.insert((index + s.len()) as u8, *s);
 
@@ -41,7 +41,6 @@ fn prepare(strings: &[&'static str]) -> Masks {
         index += s.len();
     }
 
-    high_mask = high_mask >> 1;
     println!("cmpstring: {}", std::str::from_utf8(&cmp[..]).unwrap());
     println!("ids: {:?}", ids);
 
@@ -214,7 +213,7 @@ mod tests {
 
     #[test]
     fn avx_test() {
-        avx(&b"UpgradeContent-Length: 1234\r\nHost: hello.com"[..]);
+        avx(&b"Content-Length: 1234\r\nHost: hello.com"[..]);
 
         panic!();
     }
