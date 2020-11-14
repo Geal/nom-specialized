@@ -7,10 +7,10 @@ struct Masks {
   shuf_mask: [u8; 32],
   high_mask: u32,
   low_mask: u32,
-  ids: HashMap<u8, &'static str>,
+  ids: [u8; 32],
 }
 
-fn prepare(strings: &[&'static str]) -> Masks {
+fn prepare(strings: &[&[u8]]) -> Masks {
     if strings.iter().fold(0, |acc, s| acc+s.len()) > 32 {
         panic!("strings too long");
     }
@@ -19,11 +19,11 @@ fn prepare(strings: &[&'static str]) -> Masks {
     let mut shuf_mask = [0u8; 32];
     let mut high_mask = 0u32;
     let mut low_mask = 0u32;
-    let mut ids = HashMap::new();
+    let mut ids = [0xFFu8; 32];
 
     let mut index = 0usize;
-    for s in strings.iter() {
-        &mut cmp[index..index+s.len()].copy_from_slice(s.as_bytes());
+    for (s_index, s) in strings.iter().enumerate() {
+        &mut cmp[index..index+s.len()].copy_from_slice(s);
         for i in 0..s.len() {
             shuf_mask[index+i] = i as u8;
         }
@@ -31,7 +31,8 @@ fn prepare(strings: &[&'static str]) -> Masks {
         high_mask |= 1 << index + s.len() - 1;
         low_mask |= 1 << index;
 
-        ids.insert((index + s.len()) as u8, *s);
+        //ids.insert((index + s.len()) as u8, *s);
+        ids[(index + s.len()) - 1] = s_index as u8;
 
         println!("cmp: {:x?}", cmp);
         println!("shuf_mask: {:x?}", shuf_mask);
@@ -53,21 +54,8 @@ fn avx(i: &[u8]) -> () {
     let d = dump(input);
     println!("dumped:\n{}", &d.to_hex(16));
 
-    /*
-    let mask = [0u8, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3,
-                0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3];
-    let shuf_mask = load(&mask[..]);
-    let shuffled = unsafe { _mm256_shuffle_epi8(input, shuf_mask) };
-    print_hex("shuffled", shuffled);
-
-    let compare_string = b"AcceContDateConAForwHostUserUp34";
-    let cmp_mask = load(&compare_string[..]);
-    print_hex("cmp_mask", cmp_mask);
-    let high_mask: u32 = 0b0000_0000_0000_0000_1000_1000_1000_1000;
-    let low_mask: u32  = 0b0000_0000_0000_0000_0001_0001_0001_0001;
-    */
-
-    let Masks { cmp, shuf_mask, high_mask, low_mask, ids } = prepare(&["Acce", "ConA", "Date", "Cont", "Forw", "Host", "User", "Upgr"][..]);
+    let strings = [&b"Acce"[..], &b"ConA"[..], &b"Date"[..], &b"Cont"[..], &b"Forw"[..], &b"Host"[..], &b"User"[..], &b"Upgr"[..]];
+    let Masks { cmp, shuf_mask, high_mask, low_mask, ids } = prepare(&strings[..]);
     let cmp_mask = load(&cmp);
     print_hex("cmp_mask", cmp_mask);
     let shuf_mask = load(&shuf_mask[..]);
@@ -97,7 +85,7 @@ fn avx(i: &[u8]) -> () {
     let cnt = unsafe { _lzcnt_u32(res) };
     println!("lzcnt: {}", cnt);
 
-    println!("found? {:?}", ids.get(&((32 - cnt) as u8)));
+    println!("found? {:?}", std::str::from_utf8(strings[ids[(31 - cnt) as usize] as usize]).unwrap());
 }
 
 fn reorder_mask(i:u32) -> u32 {
@@ -220,7 +208,7 @@ mod tests {
 
     #[test]
     fn prepare_test() {
-        let strings = ["Acce", "Cont", "Date", "ConA", "Forw", "Host", "User", "Up34"];
+        let strings = [&b"Acce"[..], &b"Cont"[..], &b"Date"[..], &b"ConA"[..], &b"Forw"[..], &b"Host"[..], &b"User"[..], &b"Up34"[..]];
         prepare(&strings[..]);
         panic!();
     }
