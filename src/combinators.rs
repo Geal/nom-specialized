@@ -431,9 +431,6 @@ pub fn tag_sse2<'a, 'b: 'a, Error: ParseError<&'a [u8]>>(
             _SIDD_UBYTE_OPS, _SIDD_NEGATIVE_POLARITY,
         };
 
-        let start = input.as_ptr() as usize;
-        let mut i = input.as_ptr() as usize;
-        let mut left = input.len();
         let mut found = false;
 
         let mut index = 0;
