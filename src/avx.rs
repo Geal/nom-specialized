@@ -1,6 +1,38 @@
 use std::arch::x86_64::*;
-use nom::HexDisplay;
-use std::collections::HashMap;
+use nom::{IResult, HexDisplay, Needed, Err, error::{ParseError, ErrorKind}};
+
+fn multitag<'a, Error: ParseError<&'a [u8]>>(tags:&[&[u8]])
+  -> impl Fn(&'a [u8]) -> IResult<&'a [u8], usize, Error>{
+
+  let Masks { cmp, shuf_mask, high_mask, low_mask, ids } = prepare(tags);
+
+  move |i: &'a[u8]| {
+      //FIXME
+      if i.len() < 4 {
+          return Err(Err::Incomplete(Needed::Unknown));
+      }
+
+    let input = load16(i);
+    let cmp_mask = load(&cmp);
+    let shuf_mask = load(&shuf_mask[..]);
+    let shuffled = unsafe { _mm256_shuffle_epi8(input, shuf_mask) };
+    let cmpres = unsafe { _mm256_cmpeq_epi8(shuffled, cmp_mask) };
+    let maskres = unsafe { _mm256_movemask_epi8(cmpres) };
+    let tmp_mask = maskres as u32 & !high_mask;
+    let (tmp_mask2, _) = tmp_mask.overflowing_add(low_mask);
+    let tmp_mask3 = tmp_mask2 & maskres as u32;
+    let res = tmp_mask3 & high_mask;
+
+    let cnt = unsafe { _lzcnt_u32(res) };
+
+    let idx = ids[(31 - cnt) as usize];
+    if idx == 0xFFu8 {
+        Err(Err::Error(Error::from_error_kind(i, ErrorKind::Tag)))
+    } else {
+        Ok((&i[4..], idx as usize))
+    }
+  }
+}
 
 struct Masks {
   cmp: [u8; 32],
