@@ -1,33 +1,79 @@
 use std::arch::x86_64::*;
 use nom::HexDisplay;
+use std::collections::HashMap;
+
+struct Masks {
+  cmp: [u8; 32],
+  shuf_mask: [u8; 32],
+  high_mask: u32,
+  low_mask: u32,
+  ids: HashMap<u8, &'static str>,
+}
+
+fn prepare(strings: &[&'static str]) -> Masks {
+    if strings.iter().fold(0, |acc, s| acc+s.len()) > 32 {
+        panic!("strings too long");
+    }
+
+    let mut cmp = [0u8; 32];
+    let mut shuf_mask = [0u8; 32];
+    let mut high_mask = 0u32;
+    let mut low_mask = 0u32;
+    let mut ids = HashMap::new();
+
+    let mut index = 0usize;
+    for s in strings.iter() {
+        &mut cmp[index..index+s.len()].copy_from_slice(s.as_bytes());
+        for i in 0..s.len() {
+            shuf_mask[index+i] = i as u8;
+        }
+
+        high_mask = (high_mask + 1) << s.len();
+        low_mask = (low_mask << s.len()) + 1;
+
+        ids.insert((index + s.len()) as u8, *s);
+
+        println!("cmp: {:x?}", cmp);
+        println!("shuf_mask: {:x?}", shuf_mask);
+        print_u32("high mask", high_mask);
+        print_u32("low mask", low_mask);
+
+        index += s.len();
+    }
+
+    high_mask = high_mask >> 1;
+    println!("cmpstring: {}", std::str::from_utf8(&cmp[..]).unwrap());
+    println!("ids: {:?}", ids);
+
+    Masks { cmp, shuf_mask, high_mask, low_mask, ids }
+}
 
 fn avx(i: &[u8]) -> () {
     println!("input:\n{}", i.to_hex(16));
-    //let input = _mm256_broadcastsi128_si256(i.as_ptr() as *const _ );
-    /*let input = unsafe {
-        _mm256_loadu2_m128i(
-            i.as_ptr() as *const _,
-            i.as_ptr() as *const _)
-    };*/
-    let input = load(i);
+    let input = load16(i);
     let d = dump(input);
     println!("dumped:\n{}", &d.to_hex(16));
 
+    /*
     let mask = [0u8, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3,
                 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3, 0, 1, 2, 3];
     let shuf_mask = load(&mask[..]);
     let shuffled = unsafe { _mm256_shuffle_epi8(input, shuf_mask) };
     print_hex("shuffled", shuffled);
-    //println!("shuffled:\n{}", &(dump(shuffled)).to_hex(16));
 
     let compare_string = b"AcceContDateConAForwHostUserUp34";
     let cmp_mask = load(&compare_string[..]);
     print_hex("cmp_mask", cmp_mask);
-    //let high_mask: u32 = 0b1000_1000_1000_1000_0000_0000_0000_0000;
-    //let high_mask: u32 = 0b1000_1000_1000_1000_0000_0000_0000_0000;
-    //let low_mask: u32  = 0b0001_0001_0001_0001_0000_0000_0000_0000;
     let high_mask: u32 = 0b0000_0000_0000_0000_1000_1000_1000_1000;
     let low_mask: u32  = 0b0000_0000_0000_0000_0001_0001_0001_0001;
+    */
+
+    let Masks { cmp, shuf_mask, high_mask, low_mask, ids } = prepare(&["Acce", "ConA", "Date", "Cont", "Forw", "Host", "User", "Upgr"][..]);
+    let cmp_mask = load(&cmp);
+    print_hex("cmp_mask", cmp_mask);
+    let shuf_mask = load(&shuf_mask[..]);
+    let shuffled = unsafe { _mm256_shuffle_epi8(input, shuf_mask) };
+    print_hex("shuffled", shuffled);
 
     let cmpres = unsafe { _mm256_cmpeq_epi8(shuffled, cmp_mask) };
     print_hex("cmpres", cmpres);
@@ -42,14 +88,17 @@ fn avx(i: &[u8]) -> () {
     print_u32("low", low_mask);
     let tmp_mask = maskres as u32 & !high_mask;
     print_u32("mask & !hi", tmp_mask);
-    let tmp_mask2 = tmp_mask + low_mask;
+    let (tmp_mask2, _) = tmp_mask.overflowing_add(low_mask);
     print_u32("(mask & !hi) + low", tmp_mask2);
     let tmp_mask3 = tmp_mask2 & maskres as u32;
     print_u32("((mask & !hi) + low) & mask", tmp_mask3);
     let res = tmp_mask3 & high_mask;
     print_u32("((mask & !hi) + low) & mask & hi", res);
 
-    println!("lzcnt: {}", unsafe { _lzcnt_u32(res) });
+    let cnt = unsafe { _lzcnt_u32(res) };
+    println!("lzcnt: {}", cnt);
+
+    println!("found? {:?}", ids.get(&((32 - cnt) as u8)));
 }
 
 fn reorder_mask(i:u32) -> u32 {
@@ -165,8 +214,15 @@ mod tests {
 
     #[test]
     fn avx_test() {
-        avx(&b"Content-Length: 1234\r\nHost: hello.com"[..]);
+        avx(&b"UpgradeContent-Length: 1234\r\nHost: hello.com"[..]);
 
+        panic!();
+    }
+
+    #[test]
+    fn prepare_test() {
+        let strings = ["Acce", "Cont", "Date", "ConA", "Forw", "Host", "User", "Up34"];
+        prepare(&strings[..]);
         panic!();
     }
 }
