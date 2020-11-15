@@ -45,11 +45,7 @@ pub struct Masks {
   ids: [u8; 32],
 }
 
-fn prepare(strings: &[&[u8]]) -> Masks {
-    if strings.iter().fold(0, |acc, s| acc+s.len()) > 32 {
-        panic!("strings too long");
-    }
-
+pub const fn prepare(strings: &[&[u8]]) -> Masks {
     let mut cmp = [0u8; 32];
     let mut shuf_mask = [0u8; 32];
     let mut high_mask = 0u32;
@@ -57,28 +53,52 @@ fn prepare(strings: &[&[u8]]) -> Masks {
     let mut ids = [0xFFu8; 32];
 
     let mut index = 0usize;
-    for (s_index, s) in strings.iter().enumerate() {
-        &mut cmp[index..index+s.len()].copy_from_slice(s);
-        for i in 0..s.len() {
+    let mut s_index = 0usize;
+    loop {
+        if s_index == strings.len() {
+            break;
+        }
+
+        let s = strings[s_index];
+
+        let mut cmp_index = index;
+        loop {
+            if cmp_index == index+s.len() {
+                break;
+            }
+
+            cmp[cmp_index] = s[cmp_index - index];
+            cmp_index += 1;
+        }
+
+        let mut i = 0usize;
+        loop {
+            if i == s.len() {
+                break;
+            }
             shuf_mask[index+i] = i as u8;
+
+            i += 1;
         }
 
         high_mask |= 1 << index + s.len() - 1;
         low_mask |= 1 << index;
 
-        //ids.insert((index + s.len()) as u8, *s);
         ids[(index + s.len()) - 1] = s_index as u8;
 
+        /*
         println!("cmp: {:x?}", cmp);
         println!("shuf_mask: {:x?}", shuf_mask);
         print_u32("high mask", high_mask);
         print_u32("low mask", low_mask);
+        */
 
         index += s.len();
+        s_index += 1;
     }
 
-    println!("cmpstring: {}", std::str::from_utf8(&cmp[..]).unwrap());
-    println!("ids: {:?}", ids);
+    //println!("cmpstring: {}", std::str::from_utf8(&cmp[..]).unwrap());
+    //println!("ids: {:?}", ids);
 
     Masks { cmp, shuf_mask, high_mask, low_mask, ids }
 }
@@ -103,8 +123,6 @@ fn avx(i: &[u8]) -> () {
 
     let maskres = unsafe { _mm256_movemask_epi8(cmpres) };
     println!("maskres: LE {:x?}, BE: {:x?}", maskres.to_le_bytes(), maskres.to_be_bytes());
-    //print_u32("maskres_before reorder", maskres as u32);
-    //let maskres = reorder_mask(maskres as u32);
     print_u32("maskres_u32", maskres as u32);
     print_u32("hi", high_mask);
     print_u32("low", low_mask);
@@ -123,17 +141,6 @@ fn avx(i: &[u8]) -> () {
     println!("found? {:?}", std::str::from_utf8(strings[ids[(31 - cnt) as usize] as usize]).unwrap());
 }
 
-fn reorder_mask(i:u32) -> u32 {
-    let d = i.to_le_bytes();
-    let mut d2 = [0u8; 4];
-    d2[0] = d[1];
-    d2[1] = d[0];
-    d2[2] = d[3];
-    d2[3] = d[2];
-
-    u32::from_le_bytes(d2)
-}
-
 fn load(i: &[u8]) -> __m256i {
     unsafe {
         _mm256_loadu2_m128i(
@@ -143,7 +150,7 @@ fn load(i: &[u8]) -> __m256i {
     }
 }
 
-fn load16(i: &[u8]) -> __m256i {
+pub fn load16(i: &[u8]) -> __m256i {
     unsafe {
         _mm256_loadu2_m128i(
             i.as_ptr() as *const _,
@@ -165,7 +172,7 @@ fn dump(i: __m256i) -> [u8; 32] {
     res
 }
 
-fn print_hex(prefix: &str, i: __m256i) {
+pub fn print_hex(prefix: &str, i: __m256i) {
     println!("{}:\n{}", prefix, &(dump(i)).to_hex(16));
 }
 
