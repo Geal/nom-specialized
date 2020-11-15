@@ -37,6 +37,25 @@ pub fn multitag<'a, Error: ParseError<&'a [u8]>>(tags:&[&[u8]])
   }
 }
 
+pub fn process(m: &MasksVec, input: __m256i) -> u8 {
+    let shuffled = unsafe { _mm256_shuffle_epi8(input, m.shuf_mask) };
+    let cmpres = unsafe { _mm256_cmpeq_epi8(shuffled, m.cmp) };
+    let maskres = unsafe { _mm256_movemask_epi8(cmpres) };
+    let tmp_mask = maskres as u32 & !m.high_mask;
+    let (tmp_mask2, _) = tmp_mask.overflowing_add(m.low_mask);
+    let tmp_mask3 = tmp_mask2 & maskres as u32;
+    let res = tmp_mask3 & m.high_mask;
+
+    let cnt = unsafe { _lzcnt_u32(res) };
+
+    if cnt < 31 {
+        let idx = m.ids[(31 - cnt) as usize];
+        idx
+    } else {
+        0xFFu8
+    }
+}
+
 pub struct Masks {
   cmp: [u8; 32],
   shuf_mask: [u8; 32],
@@ -101,6 +120,24 @@ pub const fn prepare(strings: &[&[u8]]) -> Masks {
     //println!("ids: {:?}", ids);
 
     Masks { cmp, shuf_mask, high_mask, low_mask, ids }
+}
+
+pub struct MasksVec {
+  cmp: __m256i,
+  shuf_mask: __m256i,
+  high_mask: u32,
+  low_mask: u32,
+  ids: [u8; 32],
+}
+
+impl MasksVec {
+    pub fn from(m: Masks) -> Self {
+        let Masks { cmp, shuf_mask, high_mask, low_mask, ids } = m;
+        let cmp = load(&cmp[..]);
+        let shuf_mask = load(&shuf_mask[..]);
+
+        MasksVec { cmp, shuf_mask, high_mask, low_mask, ids }
+    }
 }
 
 fn avx(i: &[u8]) -> () {
