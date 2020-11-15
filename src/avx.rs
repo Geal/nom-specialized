@@ -1,14 +1,13 @@
 use std::arch::x86_64::*;
 use nom::{IResult, HexDisplay, Needed, Err, error::{ParseError, ErrorKind}};
 
-fn multitag<'a, Error: ParseError<&'a [u8]>>(tags:&[&[u8]])
+pub fn multitag<'a, Error: ParseError<&'a [u8]>>(tags:&[&[u8]])
   -> impl Fn(&'a [u8]) -> IResult<&'a [u8], usize, Error>{
 
   let Masks { cmp, shuf_mask, high_mask, low_mask, ids } = prepare(tags);
 
   move |i: &'a[u8]| {
-      //FIXME
-      if i.len() < 4 {
+      if i.len() < 16 {
           return Err(Err::Incomplete(Needed::Unknown));
       }
 
@@ -25,16 +24,20 @@ fn multitag<'a, Error: ParseError<&'a [u8]>>(tags:&[&[u8]])
 
     let cnt = unsafe { _lzcnt_u32(res) };
 
-    let idx = ids[(31 - cnt) as usize];
-    if idx == 0xFFu8 {
-        Err(Err::Error(Error::from_error_kind(i, ErrorKind::Tag)))
+    if cnt < 31 {
+        let idx = ids[(31 - cnt) as usize];
+        if idx == 0xFFu8 {
+            Err(Err::Error(Error::from_error_kind(i, ErrorKind::Tag)))
+        } else {
+            Ok((&i[4..], idx as usize))
+        }
     } else {
-        Ok((&i[4..], idx as usize))
+        Err(Err::Error(Error::from_error_kind(i, ErrorKind::Tag)))
     }
   }
 }
 
-struct Masks {
+pub struct Masks {
   cmp: [u8; 32],
   shuf_mask: [u8; 32],
   high_mask: u32,

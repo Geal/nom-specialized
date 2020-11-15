@@ -8,11 +8,13 @@ extern crate nom_specialized;
 use bencher::Bencher;
 use nom::{IResult, Parser, Err, Needed, HexDisplay};
 use nom::error::{Error, ErrorKind, ParseError};
+use nom::branch::alt;
 //use nom::bytes::streaming::tag;
 use nom_specialized::combinators::tag_unrolled as tag;
+use nom_specialized::avx::*;
 
 fn nom_parser(i: &[u8]) -> IResult<&[u8], u8> {
-    nom::branch::alt((
+    alt((
             tag(&b"Accept-Charset"[..]).map(|_| 0u8),
             tag(&b"Accept-Encoding"[..]).map(|_| 1u8),
             tag(&b"Accept"[..]).map(|_| 2u8),
@@ -88,7 +90,7 @@ fn manual(i: &[u8]) -> IResult<&[u8], u8> {
                     if (&i[2..]).starts_with(&b"cept"[..]) {
                         match i.get(7) {
                             Some(b'-') => {
-                                nom::branch::alt((
+                                alt((
                                         tag(&b"Charset"[..]).map(|_| 0u8),
                                         tag(&b"Encoding"[..]).map(|_| 1u8),
                                         ))(&i[8..])
@@ -108,7 +110,7 @@ fn manual(i: &[u8]) -> IResult<&[u8], u8> {
         },
         Some(b'C') => {
             if (&i[1..]).starts_with(&b"ontent-"[..]) {
-                nom::branch::alt((
+                alt((
                         tag(&b"Encoding"[..]).map(|_| 4u8),
                         tag(&b"Length"[..]).map(|_| 5u8),
                         ))(&i[8..])
@@ -122,7 +124,7 @@ fn manual(i: &[u8]) -> IResult<&[u8], u8> {
         Some(b'H') => tag(&b"Host"[..]).map(|_| 9u8).parse(&i[1..]),
         Some(b'I') => tag(&b"If-Modified-Since"[..]).map(|_| 10u8).parse(&i[1..]),
         Some(b'R') => tag(&b"Referer"[..]).map(|_| 11u8).parse(&i[1..]),
-        Some(b'U') => nom::branch::alt((
+        Some(b'U') => alt((
                         tag(&b"ser-Agent"[..]).map(|_| 12u8),
                         tag(&b"pgrade"[..]).map(|_| 13u8),
                         ))(&i[1..]),
@@ -158,6 +160,52 @@ fn re(i: &[u8]) -> IResult<&[u8], u8> {
     match RE.matches(i).iter().next() {
         Some(index) => Ok((i, index as u8)),
         None => Err(Err::Error(Error::from_error_kind(i, ErrorKind::Tag))),
+    }
+}
+
+fn avx_parser<'a>() -> impl Fn(&'a[u8]) -> IResult<&'a[u8], u8> {
+    let parser1 = multitag::<Error<&'a[u8]>>(&[
+        &b"Acce"[..], &b"Auth"[..], &b"Cont"[..], &b"Date"[..],
+        &b"Expe"[..], &b"Forw"[..], &b"Host"[..], &b"If-M"[..]
+    ]);
+    let parser2 = multitag::<Error<&'a[u8]>>(&[
+        &b"Refe"[..], &b"User"[..], &b"Upgr"[..], &b"Via:"[..],
+        &b"X-Forwarded-For"[..],
+    ]);
+
+    move |i: &[u8]| {
+        if let Ok((i, idx)) = parser1(i) {
+            match idx {
+                0 => alt((
+                      tag(&b"pt-Charset"[..]).map(|_| 0u8),
+                      tag(&b"pt-Encoding"[..]).map(|_| 1u8),
+                      tag(&b"pt"[..]).map(|_| 2u8),
+                    ))(i),
+                1 => tag(&b"orization"[..]).map(|_| 3u8).parse(i),
+                2 => alt((
+                      tag(&b"ent-Encoding"[..]).map(|_| 4u8),
+                      tag(&b"ent-Length"[..]).map(|_| 5u8),
+                    ))(i),
+                4 => Ok((i, 6u8)),
+                5 => tag(&b"ct"[..]).map(|_| 7u8).parse(i),
+                6 => tag(&b"arded"[..]).map(|_| 8u8).parse(i),
+                7 => Ok((i, 9u8)),
+                8 => tag(&b"odified-Since"[..]).map(|_| 10u8).parse(i),
+                _ => Err(Err::Error(Error::from_error_kind(i, ErrorKind::Tag)))
+            }
+        } else if let Ok((i, idx)) = parser2(i) {
+            //println!("got idx: {}, i: {}", idx, std::str::from_utf8(i).unwrap());
+            match idx {
+                0 => tag(&b"rer"[..]).map(|_| 11u8).parse(i),
+                1 => tag(&b"-Agent"[..]).map(|_| 12u8).parse(i),
+                2 => tag(&b"ade"[..]).map(|_| 13u8).parse(i),
+                3 => Ok((i, 14u8)),
+                4 => Ok((i, 15u8)),
+                _ => Err(Err::Error(Error::from_error_kind(i, ErrorKind::Tag))),
+            }
+        } else {
+            Err(Err::Error(Error::from_error_kind(i, ErrorKind::Tag)))
+        }
     }
 }
 
@@ -201,6 +249,19 @@ fn multitag_Accept_re(bench: &mut Bencher) {
     bench.iter(|| re(&input[..]))
 }
 
+fn multitag_Accept_avx(bench: &mut Bencher) {
+    let parser = avx_parser();
+
+    // the parser needs 16 bytes
+    let input = b"Accept: ABCDER\r\n";
+
+    let res: IResult<_, _> = parser(&input[..]);
+    assert_eq!(res, Ok((&b": ABCDER\r\n"[..], 2)));
+
+    bench.bytes = 6;
+    bench.iter(|| parser(&input[..]))
+}
+
 fn multitag_Content_Length_nom(bench: &mut Bencher) {
     let input = b"Content-Length:";
 
@@ -239,6 +300,18 @@ fn multitag_Content_Length_re(bench: &mut Bencher) {
 
     bench.bytes = 14;
     bench.iter(|| re(&input[..]))
+}
+
+fn multitag_Content_Length_avx(bench: &mut Bencher) {
+    let parser = avx_parser();
+
+    let input = b"Content-Length: ";
+
+    let res: IResult<_, _> = parser(&input[..]);
+    assert_eq!(res, Ok((&b": "[..], 5)));
+
+    bench.bytes = 14;
+    bench.iter(|| parser(&input[..]))
 }
 
 fn multitag_Upgrade_nom(bench: &mut Bencher) {
@@ -281,19 +354,33 @@ fn multitag_Upgrade_re(bench: &mut Bencher) {
     bench.iter(|| re(&input[..]))
 }
 
+fn multitag_Upgrade_avx(bench: &mut Bencher) {
+    let parser = avx_parser();
+    let input = b"Upgrade: ABCDE\r\n";
+
+    let res: IResult<_, _> = parser(&input[..]);
+    assert_eq!(res, Ok((&b": ABCDE\r\n"[..], 13)));
+
+    bench.bytes = 7;
+    bench.iter(|| parser(&input[..]))
+}
+
 benchmark_group!(
     benches,
     multitag_Accept_nom,
     multitag_Accept_manual,
     multitag_Accept_naive,
     multitag_Accept_re,
+    multitag_Accept_avx,
     multitag_Content_Length_nom,
     multitag_Content_Length_manual,
     multitag_Content_Length_naive,
     multitag_Content_Length_re,
+    multitag_Content_Length_avx,
     multitag_Upgrade_nom,
     multitag_Upgrade_manual,
     multitag_Upgrade_naive,
     multitag_Upgrade_re,
+    multitag_Upgrade_avx,
 );
 benchmark_main!(benches);
